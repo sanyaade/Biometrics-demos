@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vxml version="2.1">
+  <form>
+    <block>
+      <prompt>
+        Thanks for calling our generic institution.
+      </prompt>
+    </block>
+    <block>
+      <prompt>
+        You will be asked to repeat a password several times. This will become your 
+        voice print for future calls.
+      </prompt>
+    </block>
+    <goto next="#startenroll"/>
+  </form>
+  <form id="startenroll">
+    <var name="clientname" expr="yourclientname"/>
+    <var name="userid" expr="your_users_id"/>
+    <var name="accesskey" expr="'d411cc020b5428d655XXXXXXXXXXXXXX'"/>
+    <var name="allowreenroll" expr="true"/>
+    <var name="allowcreate" expr="true"/>
+    <!-- ***************************************************** -->
+    <!-- ** This subdialog requires a source URL on the     ** -->
+    <!-- ** CSIDentity servers. A domain will be provided   ** -->
+    <!-- ** by CSIDentity during your provisioning process. ** -->
+    <!-- ***************************************************** -->
+    <subdialog name="enrolldlg" src=" /StartPassthroughEnrollment.do" namelist="accesskey clientname userid allowreenroll allowcreate">
+      <filled>
+        <!-- The enrollment failed for some reason. -->
+        <!-- Figure out why and try to recover. -->
+        <if cond="enrolldlg.status == 'failed'">
+          <if cond="enrolldlg.buildmodelfailed == 'true'">
+            <!-- Couldn't create a voiceprint -->
+            <audio src="enrollerror.wav"/>
+            <if cond="enrolldlg.canretry == 'true'">
+              <!-- VAS says we can retry, so start again -->
+              <audio src="retry.wav"/>
+              <block>
+                <submit next="#startenroll"/>
+              </block>
+              <else/>
+              <!-- VAS says no retries, disconnect. -->
+              <audio src="enrollfailed.wav"/>
+              <disconnect/>
+            </if>
+          </if>
+          <if cond="enrolldlg.response == '2800' || enrolldlg.response == '2802'">
+            <!-- There's already an user enrolled for that account -->
+            <if cond="enrolldlg.canretry == 'true'">
+              <!-- VAS says we can retry, so start again -->
+              <audio src="invalidaccount.wav"/>
+              <audio src="retry.wav"/>
+              <block>
+                <submit next="#startenroll"/>
+              </block>
+            </if>
+            <else/>
+            <!-- VAS says no retries, disconnect. -->
+            <audio src="enrollfailed.wav"/>
+            <disconnect/>
+          </if>
+          <else/>
+          <!-- The enrollment was successful, proceed to the next step -->
+          <block>
+            <!-- For this simple app, next step is verification -->
+            <goto next="#startverify"/>
+          </block>
+        </if>
+      </filled>
+    </subdialog>
+  </form>
+  <form id="startverify">
+    <var name="passthrough" expr="true"/>
+    <var name="accesskey" expr="'d411cc020b5428d655XXXXXXXXXXXXXX'"/>
+    <var name="clientname" expr="yourclientname"/>
+    <var name="userid" expr="your_users_id"/>
+    <subdialog name="verifydlg" src="/StartPassthroughVerification.do" namelist="accesskey   clientname userid passthrough">
+      <filled>
+        <if cond="verifydlg.status == 'failed'">
+          <!-- Couldn't match the voice -->
+          <audio src="failedverification.wav"/>
+          <disconnect/>
+        <else/>
+          <!-- It worked! -->
+          <block>
+            <prompt>
+              Your password has ben accepted.
+            </prompt>
+          </block>
+          <disconnect/>
+        </if>
+      </filled>
+    </subdialog>
+  </form>
+</vxml>

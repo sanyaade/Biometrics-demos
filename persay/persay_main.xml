@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vxml version = "2.1" >
+  <form>
+    <block>
+      <prompt>
+        Thanks for calling our generic institution.
+      </prompt>
+    </block>
+    
+    <block>
+      <prompt>
+        You will be asked to repeat a password several times. This will become your 
+        voice print for future calls.
+      </prompt>
+    </block>
+    
+    <!-- Open a new session for this call, notice the parameters -->
+		<subdialog name="Startsession" src="StartSession.xml#Startsession">
+			<param name="URL"        expr="VPHost"/>
+			<param name="hostName"   expr="APIWrapper"/>
+			<param name="configSetName" expr="defaultConfig"/>
+
+			<filled>
+				<if cond="Startsession.resultState=='Error'">
+					<throw event="error.result" messageexpr="'StartSession returned with error : ' + Startsession.message"/>
+				</if>
+				<assign name ="sessionID" expr ="Startsession.result" />
+				<log>
+					After StartSession: <value expr="Startsession.resultState"/> ,sessionId: <value expr="sessionID"/>
+				</log>
+			</filled>
+		</subdialog>
+		
+    <!-- ***************************************************** -->
+    <!-- ** Enrollment happens here                         ** -->
+    <!-- ***************************************************** -->
+    
+    
+    <subdialog name="enroll"	  cond ="trained=='false'" src="Enroll.xml#enroll">
+			<param name="URL"			expr="VPHost"/>
+			<param name="hostName"		expr="APIWrapper"/>
+			<param name="audioSource"	expr="audioHost"  />
+			<param name="speakerId"		expr="globalSpeaker"/>
+			<param name="speakerSubId"  expr="DefaultSubId"/>
+			<param name="sessionId"		expr="sessionID"/>
+			<param name="configSetName"	expr="defaultConfig"/>
+			<param name="backgroundModel" expr="'Default'"/>
+			<filled>
+				<if cond="enroll.resultState=='Error'">
+					<throw event="error.result" messageexpr="'The Enroll returned with error : ' + enroll.message"/>
+				</if>
+				<if cond="enroll.result=='Trained'">
+					<assign name="result" expr="'Enrollment'"/>
+				</if>
+				<log>
+					After enroll <value expr="enroll.resultState"/> ,<value expr="enroll.result"/>
+				</log>
+			</filled>
+		</subdialog>
+		
+    
+
+      <!-- ***************************************************** -->
+      <!-- ** Verification happens here                       ** -->
+      <!-- ***************************************************** -->
+
+  		<!-- Veirfy the speaker (since the speaker is already trained) -->
+  		<subdialog name="verify"		cond="trained=='true'" src="Verify.xml#verify">
+  			<param name="URL"			expr="VPHost"/>
+  			<param name="hostName"		expr="APIWrapper"/>
+  			<param name="audioSource"	expr="audioHost"/>
+  			<param name="speakerId"		expr="globalSpeaker"/>
+  			<param name="speakerSubId"  expr="DefaultSubId"/>
+  			<param name="sessionId"		expr="sessionID"/>
+  			<param name="configSetName"	expr="defaultConfig"/>
+  			<param name="promptAudio"	expr="'http://'+ audioHost + 'Count0-9.wav'"/>
+  			<param name="promptPhrase"	expr="'Please say your Vocal PassPhrase after the tone followed by the pound key.'"/>
+  			<param name="text"			expr="''"/>
+  			<filled>
+
+  				<if cond="verify.resultState=='Error'">
+  					<throw event="error.result" messageexpr="'Verify returned with error : ' + verify.message"/>
+  				</if>
+
+  				<assign name="result" expr="verify.decision"/>
+
+  				<log>
+  					After verify <value expr="verify.resultState"/> ,the result is <value expr="verify.decision"/>, the reason <value expr="verify.reason"/>
+  				</log>
+  			</filled>
+  		</subdialog>
+
+
+  		<!-- Call GetSessionDecision if needed and assing the outcome into "result"-->
+  		<subdialog name="getDecision"  cond ="result=='Match'"	src="GetSessionDecision.xml#decision">
+  			<param name="URL" expr="VPHost" />
+  			<param name="hostName" expr="APIWrapper" />
+  			<param name="sessionId" expr="sessionID" />
+  			<param name="configSetName" expr="'Default'" />
+  			 <filled>
+  				<if cond="getDecision.resultState=='Error'">
+  					<throw event="error.result" messageexpr="'GetSessionDecision returned with error : ' + getDecision.message" />
+  				</if>
+  				<assign name="result" expr="getDecision.decision" />
+  				<log> After GetSessionDecision <value expr="getDecision.resultState" />,the result is	<value expr="getDecision.decision" />
+  				</log>
+  			</filled>
+  		</subdialog>
+
+
+
+  		<block name ="FinalResults">
+  			<log>
+  				result: <value expr="result"/>
+  			</log>
+
+  			<if cond="result=='Enrollment'">
+  				<prompt>
+  						Enrollment of your ID has been completed successfully.
+  				</prompt>
+  			</if>
+  			<if cond="result=='Match'">
+  				<prompt>
+  						You have been authenticated.
+  				</prompt>
+  			</if>
+  			<if cond="result=='Mismatch'">
+  				<prompt>
+  						You have not been authenticated.
+  				</prompt>
+  			</if>
+  			<if cond ="result=='Inconclusive'">
+  				<prompt>
+  						You have not been authenticated. The decision is inconclusive
+  				</prompt>
+  			</if>
+  		</block>
+
+        <disconnect />
+  </form>
+</vxml>

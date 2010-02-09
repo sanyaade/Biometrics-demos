@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vxml version = "2.1" >
+  <form>
+    <block>
+      <prompt>
+        Thanks for calling our generic institution.
+      </prompt>
+    </block>
+    
+    <block>
+      <prompt>
+        You will be asked to repeat a password several times. This will become your 
+        voice print for future calls.
+      </prompt>
+    </block>
+    <!-- ***************************************************** -->
+    <!-- ** Enrollment happens here                         ** -->
+    <!-- ***************************************************** -->
+    
+    <!-- Start enrollment transaction -->
+       <var name="clientname" expr="'vocalect'" />
+       <var name="clientkey" expr="YOUR_KEY" />
+       <var name="userid" expr="'2155044654'" /><!-- Unique caller ID -->
+       <!-- "rebuildtemplate" parameter: For new users, set to false or omit. To re-build voice template for existing users, set to true. -->
+       <var name="rebuildtemplate" expr="false" />
+       <var name="transactionstarted" expr="false" />
+       <subdialog name="dialog1" src="<%=basePath%>do/StartEnrollment" namelist="clientname clientkey userid rebuildtemplate">
+             <filled>
+                   <if cond="dialog1.errorcode == 0">
+                         <assign name="transactionstarted" expr="true" />
+                   <else/>
+                         <block>
+                            <prompt>
+                              We could not enroll you. Goodbye.
+                            </prompt>
+                          </block>
+                          <disconnect/>
+                   </if>
+             </filled>
+       </subdialog> 
+       <!-- Collect voice sample 1 -->
+       <var name="gotsample" expr="false" />
+       <record cond="transactionstarted==true" name="voicesample" beep="false" maxtime="10000ms" finalsilence="2s" dtmfterm="false" type="audio/wav">
+             <property name="bargein" value="false" />
+             <block>
+               <prompt>
+                Please say your password.
+               </prompt>
+             </block>
+             <filled>
+                   <assign name="gotsample" expr="true" />
+           </filled>
+             <noinput>
+               <block>
+                 <prompt>
+                   We could not enroll you. Goodbye.
+                 </prompt>
+               </block>
+               <disconnect/>
+             </noinput>
+     </record> 
+       <!-- Verify sample 1-->
+       <var name="checkedsample" expr="false" />
+       <subdialog cond="gotsample==true" name="dialog2" src="<%=basePath%>do/AudioCheck" namelist="voicesample" method="post" enctype="multipart/form-data">
+             <filled>
+                   <if cond="dialog2.errorcode == 0">
+                         <assign name="checkedsample" expr="true" />
+                   <else />
+                         <!-- Can attempt to collect another sample and try to check it again here -->
+                         <block>
+                           <prompt>
+                             We could not enroll you. Goodbye.
+                           </prompt>
+                         </block>
+                         <disconnect/>
+                   </if>
+             </filled>
+       </subdialog> 
+       <!-- Can collect further samples (for each one, call AudioCheck sub-dialog --> 
+       <!-- Enroll user using collected samples -->
+       <subdialog cond="checkedsample==true" name="dialog3" src="<%=basePath%>do/EnrollUser">
+             <filled>
+                   <if cond="dialog3.errorcode == 0">
+                     <block>
+                       <prompt>
+                         Enrollment complete
+                       </prompt>
+                     </block>
+                   <else />
+                         <block>
+                           <prompt>
+                             We could not enroll you. Goodbye.
+                           </prompt>
+                         </block>
+                         <disconnect />
+                   </if>
+             </filled>
+       </subdialog> 
+       <!-- Complete transaction -->
+       <subdialog cond="transactionstarted==true" name="dialog4" src="<%=basePath%>do/FinishTransaction">
+       </subdialog>
+    
+
+      <!-- ***************************************************** -->
+      <!-- ** Verification happens here                       ** -->
+      <!-- ***************************************************** -->
+
+        <var name="transactionstarted" expr="false" />
+        <subdialog name="dialog1" src="<%=basePath%>do/StartVerification" namelist="clientname clientkey userid">
+              <filled>
+                    <if cond="dialog1.errorcode == 0">
+                          <assign name="transactionstarted" expr="true" />
+                    <else/>
+                      <block>
+                        <prompt>
+                          We could not verify you. Goodbye.
+                        </prompt>
+                      </block>
+                      <disconnect />
+                    </if>
+              </filled>
+        </subdialog> 
+        <!-- Collect voice sample -->
+        <var name="gotsample" expr="false" />
+        <record cond="transactionstarted==true" name="voicesample" beep="false" maxtime="10000ms" finalsilence="2s" dtmfterm="false" type="audio/wav">
+              <property name="bargein" value="false" />
+              <block>
+                 <prompt>
+                   Please say your password.
+                 </prompt>
+               </block>
+               <disconnect/>
+              <filled>
+                    <assign name="gotsample" expr="true" />
+            </filled>
+              <noinput>
+                    <block>
+                      <prompt>
+                        We could not verify you. Goodbye.
+                      </prompt>
+                    </block>
+                    <disconnect />
+              </noinput>
+      </record> 
+        <!-- Verify sample -->
+        <subdialog cond="gotsample==true" name="dialog2" src="<%=basePath%>do/VerifySample" namelist="voicesample" method="post" enctype="multipart/form-data">
+              <filled>
+                    <if cond="dialog2.errorcode == 0">
+                          <if cond="dialog2.success == true">
+                                <block>
+                                  <prompt>
+                                    Your password has ben accepted.
+                                  </prompt>
+                                </block>
+                          <else />
+                                <!-- Can attempt to collect another sample and try to verify again here -->
+                                <block>
+                                  <prompt>
+                                    We could not verify you. Goodbye.
+                                  </prompt>
+                                </block>
+                                <disconnect />
+                          </if>
+                    <else/>
+                          <block>
+                            <prompt>
+                              We could not verify you. Goodbye.
+                            </prompt>
+                          </block>
+                          <disconnect />
+                    </if>
+              </filled>
+        </subdialog> 
+        <!-- Complete transaction -->
+        <subdialog cond="transactionstarted==true" name="dialog3" src="<%=basePath%>do/FinishTransaction">
+        </subdialog>
+
+
+        <disconnect />
+  </form>
+</vxml>

@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vxml version = "2.1" >
+  <form>
+    <block>
+      <prompt>
+        Thanks for calling our generic institution.
+      </prompt>
+    </block>
+    
+    <block>
+      <prompt>
+        You will be asked to repeat a password several times. This will become your 
+        voice print for future calls.
+      </prompt>
+    </block>
+    <!-- ***************************************************** -->
+    <!-- ** Enrollment happens here                         ** -->
+    <!-- ***************************************************** -->
+    
+    <var name="requester_authentication_key" expr="'426b0dc8-1d7c-03ba-02cc-72c9b87e06da'"/>  <!-- test-only -->
+     <var name="session_type" expr="'auto_enrollment'"/>
+     <var name="dialog_style" expr="'minimum'"/>
+     <var name="identity_claim" expr="'123123'"/>   <!-- test identity_claim = 123123 ALWAYS -->
+     <var name="identity_claim_type" expr="'iso_7812'"/>
+     <var name="requester_provided_transaction_id" expr="'this is the requestor ID'"/>   <!-- test-only -->
+     <var name="signature_statement" expr="'This is my password'"/>   <!-- test-only -->
+     <var name="minimum_nds_score" expr="50"/>
+     <var name="session_id" expr="''"/>
+     <var name="status" expr="''"/>
+     <var name="signal_quality" expr="''"/>
+     <var name="enrollment" expr="''"/>
+     <var name="nds_score" expr="''"/>
+     <var name="identity_claim_status"/>
+     <var name="register_status"/>
+     <var name="create_session_status"/>
+     <var name="complete_session_status"/>
+    
+     <subdialog name="vss_register_result" srcexpr="'/api/register_identity_claim.vxml'"
+       namelist="requester_authentication_key identity_claim_type identity_claim" method="post" />
+
+      <!-- ***************************************************** -->
+      <!-- ** Verification happens here                       ** -->
+      <!-- ***************************************************** -->
+
+    
+      <subdialog name="vss_complete_result" srcexpr="'/api/complete_vss_session.vxml'"
+        namelist="requester_authentication_key session_id status nds_score signal_quality" />
+
+        <block>
+           <assign name="complete_session_status" expr="vss_complete_result.status"/>
+           <assign name="nds_score"  expr="vss_complete_result.nds_score"/>
+           <assign name="signal_quality" expr="vss_complete_result.signal_quality"/>
+
+
+          <!-- these variables returned from complete_vss_session.vxml    -->
+
+           <if cond="complete_session_status=='ok'">  
+             <if cond="enrollment">
+               <prompt>
+                 Enrollment complete. 
+               </prompt>
+             <else/>
+               <prompt>
+                 Verification complete. 
+               </prompt>
+             </if>
+
+           <elseif cond="complete_session_status=='minimum_nds_score_not_achieved'"/>
+             <prompt>
+               Score was too low. 
+               N D S score is <value expr="Math.round(vss_complete_result.nds_score*10)/10"/> 
+               Signal quality was <value expr="vss_complete_result.signal_quality"/>
+             </prompt>
+           <else/>
+             <prompt> 
+               A status other than OK was received.  
+               Complete session status equals <value expr="complete_session_status.replace('_',' ')"/>.
+             </prompt>
+           </if>
+           <prompt>
+             Thank you. Goodbye!
+           </prompt>
+           <exit/>
+         </block>
+        <disconnect />
+  </form>
+</vxml>

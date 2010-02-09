@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<vxml version="2.1" xmlns="http://www.w3.org/2001/vxml">
+
+	<script src="parser.js"/>
+	<property name="inputmodes" value="dtmf"/> 
+
+	<form id ="enroll">
+		<!-- Paramaters sent from the Main.vxml -->
+		<var name="URL"/>
+		<var name="hostName"/>
+		<var name="audioSource"/>
+		<var name="speakerId"/>
+		<var name="speakerSubId"/>
+		<var name="sessionId"/>
+		<var name="configSetName"/>
+		<var name="backgroundModel"/>
+
+		<!-- Local variable -->
+		<!-- How many enrollment segments are required to create a voiceprint,
+		NOTE: be sure to synch this number with VocalPassword engine -->
+		<var name ="enrollSegments" expr="3"/>
+		<var name ="currentEnrollSegments" expr="0"/><!-- Holds the current enrollment -->
+		<var name ="MethodName" expr="'Enroll'"/>	<!-- The name of the current API Method called in this subdialoge-->
+		<var name ="resultState" expr="'OK'"/>		<!-- Store the status of the result -->
+		<var name ="message"/>						<!-- Store the error message if needed -->
+
+		<var name="promptPhrase" expr="'To enroll, you will be asked to repeat a pass-phrase 3 times. This pass-phrase will become your vocal password.'"/> 
+		<var name="promptAudio" expr="'http://'+ audioSource + 'EnrollmentInstructions.wav'"/>
+		<var name="text" expr="''"/>
+		<var name="result" expr="'NotReady'"/>
+		<var name="audio" expr="'audioFile'"/>
+
+		<block>
+			<log>
+				Start Enroll at <value expr="hostName"/>, config is: <value expr ="configSetName"/>
+			</log>
+
+
+			<prompt>
+				<audio expr="promptAudio">
+					<value expr="promptPhrase"/>
+				</audio>
+			</prompt>
+		</block>
+
+		<block name="loop">
+			<assign name="currentEnrollSegments" expr="currentEnrollSegments+1"/>
+			<log> currentEnrollSegments = <value expr="currentEnrollSegments"/></log>
+
+			<if cond="currentEnrollSegments=='1'">
+				<assign name="promptPhrase" expr="'Please count from 0 to 9 followed by the pound key.'"/>
+				<assign name="promptAudio" expr="'http://'+ audioSource + 'Count0-9.wav'"/>
+				<goto nextitem="password"/>
+			<elseif cond="currentEnrollSegments==enrollSegments"/>
+				<assign name="promptPhrase" expr="'Thank you. This is the last recording. After the beep, please count from 0 to 9, followed by the pound key'"/>
+				<assign name="promptAudio" expr="'http://'+ audioSource + 'LastRecording.wav'"/>
+				<goto nextitem="password"/>
+			<elseif cond="currentEnrollSegments &lt; enrollSegments"/>
+				<assign name="promptPhrase" expr="'Thank you. You have 2 more enrollments to go. After the beep, please count from 0 to 9, followed by the pound key'"/>
+				<assign name="promptAudio" expr="'http://'+ audioSource + '2MoreRepetitionsToGo.wav'"/>
+				<goto nextitem="password"/>
+			<else/>
+				<goto nextitem="resultBlock"/>
+			</if>
+		</block>
+
+		<record name="password" maxtime="15s" beep ="true" type="audio/wav" finalsilence="2000ms" dtmfterm="true">
+			<prompt>
+				<audio expr="promptAudio">
+					<value expr="promptPhrase"/>
+				</audio>
+			</prompt>
+
+			<filled>
+				<data name="Enroll" srcexpr="hostName"  namelist ="MethodName URL sessionId speakerId speakerSubId audio password text configSetName backgroundModel"
+				enctype="multipart/form-data" method="post" fetchtimeout="50000"/>
+
+				<var name="xmlDoc" expr="Enroll.documentElement"/>
+
+				<assign name ="resultState" expr="GetRootName(xmlDoc)"/>
+				<log>
+					Enroll resultState =  <value expr="resultState"/>
+				</log>
+
+				<if cond="resultState=='Error'">
+					<assign name="currentEnrollSegments" expr="currentEnrollSegments-1"/>
+					<audio expr="'http://'+ audioSource + 'DidNotHearYou.wav'">
+						I'm sorry but I did not understand the numbers.
+					</audio>
+					<goto nextitem="loop"/> 
+				</if>
+
+				<assign name ="result" expr ="GetRootData(xmlDoc)" />
+				
+				<!-- Call enroll again for 3 times if the speaker is not trained yet -->
+				<log>
+					Before clear, result = <value expr="result"/>
+				</log>
+				<if cond="result!='Trained'">
+					<if cond="currentEnrollSegments==enrollSegments">
+						<assign name="currentEnrollSegments" expr="0"/>
+						<audio expr="'http://'+ audioSource + '3InconsistentRepetitons.wav'">
+							There has been a problem while enrolling you. Let's try again.
+						</audio>
+					</if>
+					<goto nextitem="loop"/>
+					<!--Loop for another enroll-->
+				<else/>
+					<goto nextitem="resultBlock"/>
+				</if>
+			</filled>
+
+			<noinput>
+				<audio expr="'http://'+ audioSource + 'DidNotHearYou.wav'">
+					I'm sorry but I couldn't hear you.
+				</audio>
+			</noinput>
+
+			<noinput count ="3">
+				<audio expr="'http://'+ audioSource + 'DidNotHearYou.wav'">
+					I'm sorry but I couldn't hear you.
+				</audio>
+				<assign name ="resultState" expr ="'Error'"/>
+				<assign name="message" expr="'No input error in Enroll - 3rd time'"/>
+				<return namelist="resultState message"/>
+			</noinput>
+
+			<catch event="error.badfetch">
+				<assign name="resultState" expr="'Error'"/>
+				<assign name="message" expr="_message"/>
+				<log>
+					Error in Enroll <value expr="_message"/>
+				</log>
+				<return namelist="resultState message"/>
+			</catch>
+
+		</record>
+
+		<block name="resultBlock">
+			<return namelist="resultState result"/>
+		</block>
+
+	</form>
+</vxml>

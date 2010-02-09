@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<vxml version="2.1" xmlns="http://www.w3.org/2001/vxml">
+
+	<script src="parser.js"/>
+	<property name="inputmodes" value="voice"/> 
+
+	<form id ="verify">
+		<!-- Paramaters sent from the Main.vxml -->
+		<var name="URL"/>
+		<var name="hostName"/>
+		<var name="audioSource"/>
+		<var name="speakerId"/>
+		<var name="speakerSubId"/>
+		<var name="sessionId"/>
+		<var name="configSetName"/>
+		<!--Holds the prompted text relevant for this verification-->
+		<var name="promptAudio"/>
+		<var name="promptPhrase"/>
+		<var name="text"/>
+		
+		<!-- Local variable -->
+		<!-- The name of the current API Method called in this subdialoge-->
+		<var name="MethodName" expr="'Verify'"/>
+		<!-- Store the status of the result -->
+		<var name ="resultState" expr="'OK'"/>
+		<!--Store the error message if needed-->
+		<var name ="message"/>
+
+		<!-- Placeholder for the uploaded audio sent to the server-->
+		<var name="audio" expr="'audioFile'"/>
+		<!-- Count the number of tries -->
+		<var name="counter" expr="0"/>
+
+		<block>
+			<log>
+				Start Verify at <value expr="hostName"/>, config is: <value expr ="configSetName"/>, Text is: <value expr="text"/>
+			</log>
+		</block>
+
+		<record name="password" maxtime="20s" beep ="true" type="audio/wav" finalsilence="2000ms" dtmfterm="true">
+			<prompt>
+				<audio expr="promptAudio">
+					<value expr="promptPhrase"/>
+				</audio>
+				<value expr="text"/>
+			</prompt>
+			<filled>
+
+				<data name="Verify" srcexpr="hostName"  namelist ="MethodName URL sessionId speakerId speakerSubId audio password text configSetName" 
+					enctype="multipart/form-data" method="post" fetchtimeout="50000"/>
+				<var name="xmlDoc" expr="Verify.documentElement"/>
+
+				<assign name ="resultState" expr="GetRootName(xmlDoc)"/>
+
+				<if cond="resultState =='Error'">
+					<assign name="message" expr="GetRootData(xmlDoc)"/>
+					<return namelist="resultState message"/>"
+				</if>
+
+				<!-- No Error. Need to check the result of the verify -->
+				<assign name="counter" expr="counter+1"/>
+
+				<var name="decision" expr="GetData(xmlDoc,'Decision')" />
+				<var name="reason" expr="GetData(xmlDoc,'DecisionReason')" />
+				<if cond="reason!='InternalError' &amp; decision!='Match'&amp; counter &lt; 2">
+					<!-- give the speaker another try -->
+					<log>	Give the speaker another try <value expr="reason"/>, counter is <value expr="counter"/>		</log>
+					<clear namelist ="password"/>
+				<else/>
+					<!-- Decision is Match or this is the second try -->
+					<var name="score" expr="GetData(xmlDoc,'Score')" />
+					<var name="rawScore" expr="GetData(xmlDoc,'RawScore')" />
+					<return namelist="resultState decision reason score rawScore"/>
+				</if>
+
+			</filled>
+			<noinput>
+				<audio expr="'http://'+ audio + 'DidNotHearYou.wav'">
+					I couldn't hear you
+				</audio>
+				<reprompt/>
+			</noinput>
+			<noinput count ="3">
+				<audio expr="'http://'+ audio + 'DidNotHearYou.wav'">
+					I couldn't hear you
+				</audio>
+				<assign name ="resultState" expr ="'Error'"/>
+				<assign name="message" expr="'No input error in Verify - 3rd time'"/>
+				<return namelist="resultState message"/>
+			</noinput>
+		</record>
+	</form>
+</vxml>
