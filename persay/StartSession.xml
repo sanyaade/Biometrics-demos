@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<vxml version="2.1" xmlns="http://www.w3.org/2001/vxml">
+	<script src="parser.js"/>
+
+	<form id ="Startsession">
+		<!-- Paramaters sent from the Main.vxml -->
+		<var name="URL"/>
+		<var name="hostName"/>
+		<var name="configSetName"/>
+
+		<!-- Local variable -->
+		<!-- The name of the current API Method called in this subdialoge-->
+		<var name="MethodName" expr="'StartSession'"/>
+		<!-- Store the status of the result -->
+		<var name ="resultState"/>
+		<!--Store the error message if needed-->
+		<var name ="message"/>
+
+		<block>
+			<log>
+				StartSession at <value expr="URL"/> configSetName is: <value expr="configSetName"/> MethodName = <value expr="MethodName"/>
+			</log>
+
+			<!-- Start the session for this speaker using the APIWrapper-->
+			<data name="sessionSean" srcexpr="hostName"  namelist="MethodName URL configSetName"
+				  method="post" fetchtimeout="50000" />
+
+			<var name="xmlDoc" expr="sessionSean.documentElement"/>
+
+			<assign name="resultState" expr="GetRootName(xmlDoc)"/>
+			
+			<if cond ="resultState=='Error'">
+				<assign name="message" expr="GetRootData(xmlDoc)"/>
+				<return namelist="resultState message"/>
+			</if>
+
+			<!--Retrieve the session id and return it to the main vxml-->
+			<var name ="result" expr ="GetData(xmlDoc,'SessionId')" />
+			<return namelist="resultState result"/>
+		</block>
+		
+		<!--dealing with fatal errors -->
+		<catch event="error.badfetch">
+			<assign name="resultState" expr="'Error'"/>
+			<assign name="message" expr="_message"/>
+			<return namelist="resultState message"/>
+		</catch>
+	</form>
+</vxml>

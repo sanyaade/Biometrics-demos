@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="iso-8859-1" ?>
+<vxml version="2.1" xmlns="http://www.w3.org/2001/vxml">
+	<script src="parser.js" />
+	<form id="decision">
+		<!--  Paramaters sent from the Main.vxml -->
+		<var name="URL" />
+		<var name="hostName" />
+		<var name="sessionId" />
+		<var name="configSetName" />
+
+		<!--  Local variable -->
+		<!--  The name of the current API Method called in this subdialoge  -->
+		<var name="MethodName" expr="'GetSessionDecision'" />
+		<!--  Store the status of the result   -->
+		<var name="resultState" expr="'OK'" />
+		<!--Store the error message if needed-->
+		<var name ="message"/>
+		
+		<block>
+			<log>
+				Start GetSessionDecision at		<value expr="hostName" />	, config is:<value expr="configSetName" />
+			</log>
+
+			<data name="getDecision" srcexpr="hostName" namelist="MethodName URL sessionId configSetName"
+				  enctype="multipart/form-data" method="post" fetchtimeout="50000" />
+			<var name="xmlDoc" expr="getDecision.documentElement" />
+
+			<assign name="resultState" expr="GetRootName(xmlDoc)" />
+
+			<if cond="resultState =='Error'">
+				<assign name="message" expr="GetRootData(xmlDoc)" />
+				<return namelist="resultState message" />
+			</if>
+
+			<var name="decision" expr="GetRootData(xmlDoc)" />
+			<return namelist="resultState decision" />
+		</block>
+		
+		<!--dealing with fatal errors -->
+		<catch event="error.badfetch">
+			<assign name="resultState" expr="'Error'"/>
+			<assign name="message" expr="_message"/>
+			<return namelist="resultState message"/>
+		</catch>
+
+	</form>
+</vxml>
